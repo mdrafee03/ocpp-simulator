@@ -3,11 +3,14 @@ import {
   useContext,
   useMemo,
   useState,
+  useEffect,
+  useRef,
   type PropsWithChildren,
 } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { Environments, OCPP_VERSIONS } from "../constants/constants";
 import { useConfigStore } from "./useConfigStore";
+import { useLoggerStore } from "./useLoggerStore";
 
 interface WebSocketContextType {
   sendMessage: (msg: string) => void;
@@ -24,6 +27,8 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(
 export const WebSocketProvider = ({ children }: PropsWithChildren) => {
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const config = useConfigStore((state) => state.config);
+  const logMsg = useLoggerStore((state) => state.logMsg);
+  const prevReadyState = useRef<ReadyState | null>(null);
 
   const { sendMessage, lastMessage, readyState, getWebSocket } = useWebSocket(
     wsUrl,
@@ -32,6 +37,22 @@ export const WebSocketProvider = ({ children }: PropsWithChildren) => {
       shouldReconnect: () => false,
     }
   );
+
+  // Handle WebSocket connection state changes and logging
+  useEffect(() => {
+    if (
+      readyState === ReadyState.OPEN &&
+      prevReadyState.current !== ReadyState.OPEN
+    ) {
+      logMsg("info", "WebSocket is connected");
+    } else if (
+      readyState === ReadyState.CLOSED &&
+      prevReadyState.current !== ReadyState.CLOSED
+    ) {
+      logMsg("info", "WebSocket connection closed");
+    }
+    prevReadyState.current = readyState;
+  }, [readyState, logMsg]);
 
   const connect = () => {
     // Force reconnection by first closing any existing connection

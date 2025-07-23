@@ -1,8 +1,7 @@
 import { create } from "zustand";
-import type { OcppRequestType } from "../constants/enums";
+import { persist } from "zustand/middleware";
 
 type Actions = {
-  lastAction?: OcppRequestType;
   transactionId?: number;
 };
 
@@ -13,7 +12,14 @@ type ActionState = {
 
 const defaultValues: Actions = {};
 
-export const useActionStore = create<ActionState>((set) => ({
-  actions: defaultValues,
-  setActions: (config) => set({ actions: config }),
-}));
+export const useActionStore = create<ActionState>()(
+  persist(
+    (set) => ({
+      actions: defaultValues,
+      setActions: (config) => set({ actions: config }),
+    }),
+    {
+      name: "actions-storage",
+    }
+  )
+);

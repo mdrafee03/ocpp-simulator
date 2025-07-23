@@ -4,21 +4,24 @@ import { OcppMessageType, OcppRequestType } from "../../constants/enums";
 import { useMeterValue } from "../../hooks/useMeterValue";
 import { useStartTransaction } from "../../hooks/useStartTransaction";
 import { useActionStore } from "../../store/useActionsStore";
+import { getRandomId } from "../../helpers/helpers";
 import { useConfigStore } from "../../store/useConfigStore";
 import { useLoggerStore } from "../../store/useLoggerStore";
+import { useMessageTrackingStore } from "../../store/useMessageTrackingStore";
 import { useWebSocketHook } from "../../store/WebSocketContext";
 
 export function useControlPanel() {
   const logMsg = useLoggerStore((state) => state.logMsg);
   const clearLogs = useLoggerStore((state) => state.clear);
-  const { connect, sendMessage, closeWebSocket } = useWebSocketHook();
+  const { connect, sendMessage, closeWebSocket, readyState } =
+    useWebSocketHook();
   const { config } = useConfigStore();
-  const { actions, setActions } = useActionStore();
+  const { actions } = useActionStore();
+  const { addPendingMessage } = useMessageTrackingStore();
   const { handleStartTransaction } = useStartTransaction();
   const [status, setStatus] = useState("Available");
-  const { sendMeterValues } = useMeterValue();
-
-  const { readyState } = useWebSocketHook();
+  const { startMeterInterval, stopMeterInterval, isMeterIntervalActive } =
+    useMeterValue();
 
   const { id, serialNumber } = config;
 
@@ -46,8 +49,9 @@ export function useControlPanel() {
     ]);
 
     sendMessage(message);
-    logMsg("outgoing", `Boot notification: ${message}`);
-  }, [id, sendMessage, logMsg]);
+    addPendingMessage(id, OcppRequestType.BootNotification);
+    logMsg("outgoing", `Boot notification sent`);
+  }, [id, sendMessage, logMsg, addPendingMessage]);
 
   useEffect(() => {
     if (
@@ -57,18 +61,14 @@ export function useControlPanel() {
       if (isReconnecting) {
         logMsg("info", "Reconnected successfully");
         setIsReconnecting(false);
-      } else {
-        logMsg("info", "WebSocket is connected");
       }
       if (shouldSendBootNotification) {
-        handleBootNotification();
-        setShouldSendBootNotification(false);
+        // Add a small delay to ensure "WebSocket is connected" appears first
+        setTimeout(() => {
+          handleBootNotification();
+          setShouldSendBootNotification(false);
+        }, 50);
       }
-    } else if (
-      readyState === ReadyState.CLOSED &&
-      prevReadyState.current !== ReadyState.CLOSED
-    ) {
-      logMsg("info", "WebSocket connection closed");
     }
     prevReadyState.current = readyState;
   }, [
@@ -104,7 +104,8 @@ export function useControlPanel() {
       { idTag: serialNumber },
     ]);
     sendMessage(message);
-    logMsg("outgoing", `Authorize sent: ${message}`);
+    addPendingMessage(id, OcppRequestType.Authorize);
+    logMsg("outgoing", `Authorize request sent`);
   };
 
   const handleStopTransaction = (transactionId = "") => {
@@ -131,11 +132,8 @@ export function useControlPanel() {
     ]);
 
     sendMessage(message);
-    logMsg("outgoing", `Stop Transaction sent: ${message}`);
-    setActions({
-      ...actions,
-      lastAction: requestType,
-    });
+    addPendingMessage(id, requestType);
+    logMsg("outgoing", `Stop transaction request sent`);
   };
 
   const handleHeartbeat = () => {
@@ -143,24 +141,23 @@ export function useControlPanel() {
     const message = JSON.stringify([OcppMessageType.Call, id, requestType, {}]);
 
     sendMessage(message);
-    logMsg("outgoing", `Heartbeat sent: ${message}`);
-    setActions({
-      ...actions,
-      lastAction: requestType,
-    });
+    addPendingMessage(id, requestType);
+    logMsg("outgoing", `Heartbeat request sent`);
   };
 
   const handleSendMeter = () => {
-    logMsg("info", "Setting meter value interval to 1 minutes");
-    setInterval(() => {
-      sendMeterValues();
-    }, 60000);
+    if (isMeterIntervalActive()) {
+      stopMeterInterval();
+    } else {
+      startMeterInterval(60000); // 1 minute interval
+    }
   };
   const handleStatus = () => {
     const requestType = OcppRequestType.StatusNotification;
+    const uniqueId = getRandomId();
     const message = JSON.stringify([
       OcppMessageType.Call,
-      id,
+      uniqueId,
       requestType,
       {
         connectorId: 1,
@@ -174,8 +171,8 @@ export function useControlPanel() {
     ]);
 
     sendMessage(message);
-    logMsg("outgoing", `Status Notification sent: ${message}`);
-    setActions({ ...actions, lastAction: requestType });
+    addPendingMessage(uniqueId, requestType);
+    logMsg("outgoing", `Status notification sent: ${status}`);
   };
 
   return {

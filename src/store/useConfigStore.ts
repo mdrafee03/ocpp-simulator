@@ -1,6 +1,7 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { getRandomId } from "../helpers/helpers";
-import type { OcppRequestType, OcppStatusType } from "../constants/enums";
+import type { OcppStatusType } from "../constants/enums";
 
 type Configuration = {
   env: "Local" | "Dev";
@@ -9,7 +10,6 @@ type Configuration = {
   meterCount: number;
   meterValue: number;
   transactionId?: number;
-  lastAction?: OcppRequestType;
   status: OcppStatusType;
 };
 
@@ -28,8 +28,15 @@ const defaultConfig: Configuration = {
   status: "Available",
 };
 
-export const useConfigStore = create<ConfigState>((set) => ({
-  config: defaultConfig,
-  setConfig: (config) => set({ config }),
-  clearConfig: () => set({ config: defaultConfig }),
-}));
+export const useConfigStore = create<ConfigState>()(
+  persist(
+    (set) => ({
+      config: defaultConfig,
+      setConfig: (config) => set({ config }),
+      clearConfig: () => set({ config: defaultConfig }),
+    }),
+    {
+      name: "config-storage",
+    }
+  )
+);

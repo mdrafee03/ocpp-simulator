@@ -1,38 +1,48 @@
 import { useEffect } from "react";
-import {
-  OcppErrorCode,
-  OcppMessageType,
-  OcppRequestType,
-} from "../constants/enums";
-import { useActionStore } from "../store/useActionsStore";
+import { OcppMessageType, OcppRequestType } from "../constants/enums";
+
 import { useLoggerStore } from "../store/useLoggerStore";
+import { useMessageTrackingStore } from "../store/useMessageTrackingStore";
 import { useWebSocketHook } from "../store/WebSocketContext";
 import type { CallRequest } from "../interfaces/CallRequest";
-import { useGetConfigurationCallRequest } from "./Handlers/CallRequests/useGetConfigurationCallRequest";
-import type { CallError } from "../interfaces/CallError";
+import { useGetConfigurationHandler } from "./Handlers/CallRequests/handlers/useGetConfigurationHandler";
+import { useRemoteStartTransactionHandler } from "./Handlers/CallRequests/handlers/useRemoteStartTransactionHandler";
+import { useRemoteStopTransactionHandler } from "./Handlers/CallRequests/handlers/useRemoteStopTransactionHandler";
+import { useChargingProfileHandlers } from "./Handlers/CallRequests/handlers/useChargingProfileHandlers";
+import { useNotImplementedHandler } from "./Handlers/CallRequests/handlers/useNotImplementedHandler";
+import { useHeartbeatResultHandler } from "./Handlers/CallResults/handlers/useHeartbeatResultHandler";
+import { useStatusNotificationResultHandler } from "./Handlers/CallResults/handlers/useStatusNotificationResultHandler";
+import { useStartTransactionResultHandler } from "./Handlers/CallResults/handlers/useStartTransactionResultHandler";
+import { useStopTransactionResultHandler } from "./Handlers/CallResults/handlers/useStopTransactionResultHandler";
+import { useAuthorizeResultHandler } from "./Handlers/CallResults/handlers/useAuthorizeResultHandler";
+import { useMeterValuesResultHandler } from "./Handlers/CallResults/handlers/useMeterValuesResultHandler";
+import { useGenericResultHandler } from "./Handlers/CallResults/handlers/useGenericResultHandler";
 
 export const useProcessWebhook = () => {
   const { logMsg } = useLoggerStore();
   const { lastMessage } = useWebSocketHook();
-  const { actions, setActions } = useActionStore();
+  const { removePendingMessage } = useMessageTrackingStore();
 
-  const { handleGetConfigurationCallRequest } =
-    useGetConfigurationCallRequest();
+  const { handleGetConfiguration } = useGetConfigurationHandler();
+  const { handleRemoteStartTransaction } = useRemoteStartTransactionHandler();
+  const { handleRemoteStopTransaction } = useRemoteStopTransactionHandler();
+  const { handleSetChargingProfile, handleClearChargingProfile } =
+    useChargingProfileHandlers();
+  const { handleNotImplemented } = useNotImplementedHandler();
+  const { handleHeartbeatResult } = useHeartbeatResultHandler();
+  const { handleStatusNotificationResult } =
+    useStatusNotificationResultHandler();
+  const { handleStartTransactionResult } = useStartTransactionResultHandler();
+  const { handleStopTransactionResult } = useStopTransactionResultHandler();
+  const { handleAuthorizeResult } = useAuthorizeResultHandler();
+  const { handleMeterValuesResult } = useMeterValuesResultHandler();
+  const { handleGenericCallResult } = useGenericResultHandler();
 
-  const handleCallRequest = (
+  const processCallRequest = (
     id: string,
     action: OcppRequestType,
     payload: string
   ) => {
-    // if (action === OcppRequestType.StartTransaction) {
-    //   const message = JSON.stringify([
-    //     OcppMessageType.CallResult,
-    //     id,
-    //     { status: "Accepted" },
-    //   ]);
-    //   sendMessage(message);
-    //   setTimeout(() => handleStartTransaction, 5000);
-    // }
     const callRequest: CallRequest = {
       uniqueId: id,
       action: action,
@@ -41,25 +51,68 @@ export const useProcessWebhook = () => {
 
     switch (action) {
       case OcppRequestType.GetConfiguration:
-        handleGetConfigurationCallRequest(callRequest);
+        handleGetConfiguration(callRequest);
         break;
-      default: {
-        const message: CallError = {
-          uniqueId: id,
-          errorCode: OcppErrorCode.NotImplemented,
-          errorDescription: `Action ${action} is not implemented`,
-          errorPayload: "",
-        };
-        logMsg("error", `Call request error: ${JSON.stringify(message)}`);
+
+      case OcppRequestType.RemoteStartTransaction:
+        handleRemoteStartTransaction(callRequest);
         break;
-      }
+
+      case OcppRequestType.RemoteStopTransaction:
+        handleRemoteStopTransaction(callRequest);
+        break;
+
+      case OcppRequestType.SetChargingProfile:
+        handleSetChargingProfile(callRequest);
+        break;
+
+      case OcppRequestType.ClearChargingProfile:
+        handleClearChargingProfile(callRequest);
+        break;
+
+      default:
+        handleNotImplemented(callRequest);
+        break;
     }
   };
 
-  const handleCallResult = (payload: Record<string, unknown>) => {
-    if (actions.lastAction === OcppRequestType.StartTransaction) {
-      const transactionId = payload.transactionId as number;
-      setActions({ ...actions, transactionId: transactionId });
+  const handleCallResult = (id: string, payload: Record<string, unknown>) => {
+    const pendingMessage = removePendingMessage(id);
+
+    if (pendingMessage) {
+      const actionName = pendingMessage.action;
+
+      switch (actionName) {
+        case OcppRequestType.Authorize:
+          handleAuthorizeResult(payload);
+          break;
+
+        case OcppRequestType.Heartbeat:
+          handleHeartbeatResult();
+          break;
+
+        case OcppRequestType.StatusNotification:
+          handleStatusNotificationResult();
+          break;
+
+        case OcppRequestType.StartTransaction:
+          handleStartTransactionResult(payload);
+          break;
+
+        case OcppRequestType.StopTransaction:
+          handleStopTransactionResult(payload);
+          break;
+
+        case OcppRequestType.MeterValues:
+          handleMeterValuesResult();
+          break;
+
+        default:
+          handleGenericCallResult(actionName, payload);
+          break;
+      }
+    } else {
+      logMsg("incoming", `Call result received for unknown request ID: ${id}`);
     }
   };
 
@@ -72,31 +125,33 @@ export const useProcessWebhook = () => {
 
     switch (messageTypeId) {
       case OcppMessageType.Call:
-        logMsg(
-          "incoming",
-          `Call message received with ID: ${id}, request: ${
-            parsedMessage[2]
-          } payload: ${JSON.stringify(parsedMessage[3])}`
-        );
-        handleCallRequest(id, action, payload);
+        logMsg("incoming", `${action} request received`);
+        processCallRequest(id, action, payload);
         break;
       case OcppMessageType.CallResult:
-        logMsg(
-          "incoming",
-          `CallResult received for ID: ${id} and payload: ${JSON.stringify(
-            parsedMessage[2]
-          )}`
-        );
-        handleCallResult(parsedMessage[2]);
+        handleCallResult(id, parsedMessage[2]);
         break;
       case OcppMessageType.CallError:
-        logMsg(
-          "incoming",
-          `CallError received for ID: ${id} and payload: ${JSON.stringify(
-            parsedMessage[2]
-          )}`
-        );
-        // Handle CallError logic here
+        {
+          const pendingMessage = removePendingMessage(id);
+          if (pendingMessage) {
+            // Extract error details from the payload
+            const errorCode = parsedMessage[2]?.errorCode || "Unknown";
+            const errorDescription =
+              parsedMessage[2]?.errorDescription || "No description";
+            logMsg(
+              "error",
+              `${pendingMessage.action} failed: ${errorCode} - ${errorDescription}`
+            );
+          } else {
+            logMsg(
+              "error",
+              `Call error received for unknown request ID: ${id}`
+            );
+          }
+          // Handle CallError logic here
+          break;
+        }
         break;
       default:
         logMsg("info", `Unknown message type: ${messageTypeId}`);

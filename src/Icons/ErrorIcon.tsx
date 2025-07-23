@@ -6,8 +6,7 @@ export const ErrorIcon = () => {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      className="size-4"
-      color="red"
+      className="size-4 text-error"
     >
       <path
         strokeLinecap="round"

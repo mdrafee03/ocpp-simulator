@@ -6,8 +6,7 @@ export const InfoIcon = () => {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      className="size-4"
-      color="#35ed32"
+      className="size-4 text-info"
     >
       <path
         strokeLinecap="round"

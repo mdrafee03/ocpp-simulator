@@ -10,7 +10,7 @@ export const ClearIcon = ({ onClick }: ClearIconProps) => {
       viewBox="0 0 24 24"
       strokeWidth="1.5"
       stroke="currentColor"
-      className="size-6"
+      className="size-6 cursor-pointer hover:text-error transition-colors"
     >
       <path
         strokeLinecap="round"
