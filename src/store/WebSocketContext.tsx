@@ -14,6 +14,7 @@ interface WebSocketContextType {
   lastMessage: MessageEvent<string> | null;
   readyState: ReadyState;
   connect: () => void;
+  closeWebSocket: () => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(
@@ -23,18 +24,33 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(
 export const WebSocketProvider = ({ children }: PropsWithChildren) => {
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const config = useConfigStore((state) => state.config);
-  const { sendMessage, lastMessage, readyState } = useWebSocket(wsUrl, {
-    protocols: wsUrl ? [...OCPP_VERSIONS] : undefined,
-    shouldReconnect: () => false,
-  });
+
+  const { sendMessage, lastMessage, readyState, getWebSocket } = useWebSocket(
+    wsUrl,
+    {
+      protocols: wsUrl ? [...OCPP_VERSIONS] : undefined,
+      shouldReconnect: () => false,
+    }
+  );
 
   const connect = () => {
-    setWsUrl(Environments[config.env] + config.serialNumber);
+    // Force reconnection by first closing any existing connection
+    getWebSocket()?.close();
+    setWsUrl(null);
+    // Set the URL after a brief delay to ensure the previous connection is closed
+    setTimeout(() => {
+      setWsUrl(Environments[config.env] + config.serialNumber);
+    }, 100);
+  };
+
+  const closeWebSocket = () => {
+    getWebSocket()?.close();
+    setWsUrl(null);
   };
 
   const value = useMemo(
-    () => ({ sendMessage, lastMessage, readyState, connect }),
-    [sendMessage, lastMessage, readyState, config]
+    () => ({ sendMessage, lastMessage, readyState, connect, closeWebSocket }),
+    [sendMessage, lastMessage, readyState, config, getWebSocket]
   );
 
   return (

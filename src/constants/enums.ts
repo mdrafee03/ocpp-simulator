@@ -23,7 +23,36 @@ export const OcppRequestType = {
   GetConfiguration: "GetConfiguration",
 } as const;
 
+export const OcppStatus = {
+  Available: "Available",
+  Preparing: "Preparing",
+  Charging: "Charging",
+  SuspendedEV: "SuspendedEV",
+  SuspendedEVSE: "SuspendedEVSE",
+  Finishing: "Finishing",
+  Reserved: "Reserved",
+  Unavailable: "Unavailable",
+  Faulted: "Faulted",
+};
+
+export const OcppErrorCode = {
+  GenericError: 0,
+  NotImplemented: 1,
+  NotSupported: 2,
+  InternalError: 3,
+  SecurityError: 4,
+  FormationViolation: 5,
+  PropertyConstraintViolation: 6,
+  OccurrenceConstraintViolation: 7,
+  TypeConstraintViolation: 8,
+};
+
 export type OcppMessageType =
   (typeof OcppMessageType)[keyof typeof OcppMessageType];
 export type OcppRequestType =
   (typeof OcppRequestType)[keyof typeof OcppRequestType];
+
+export type OcppStatusType = (typeof OcppStatus)[keyof typeof OcppStatus];
+
+export type OcppErrorCodeType =
+  (typeof OcppErrorCode)[keyof typeof OcppErrorCode];

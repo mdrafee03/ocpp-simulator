@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { ReadyState } from "react-use-websocket";
 import { OcppMessageType, OcppRequestType } from "../../constants/enums";
+import { useMeterValue } from "../../hooks/useMeterValue";
+import { useStartTransaction } from "../../hooks/useStartTransaction";
 import { useActionStore } from "../../store/useActionsStore";
 import { useConfigStore } from "../../store/useConfigStore";
 import { useLoggerStore } from "../../store/useLoggerStore";
@@ -8,28 +10,24 @@ import { useWebSocketHook } from "../../store/WebSocketContext";
 
 export function useControlPanel() {
   const logMsg = useLoggerStore((state) => state.logMsg);
-  const { connect, sendMessage } = useWebSocketHook();
-  const { config, setConfig } = useConfigStore();
+  const clearLogs = useLoggerStore((state) => state.clear);
+  const { connect, sendMessage, closeWebSocket } = useWebSocketHook();
+  const { config } = useConfigStore();
   const { actions, setActions } = useActionStore();
+  const { handleStartTransaction } = useStartTransaction();
   const [status, setStatus] = useState("Available");
-  const [meterValue, setMeterValue] = useState(10);
+  const { sendMeterValues } = useMeterValue();
 
   const { readyState } = useWebSocketHook();
 
-  const { id, serialNumber, meterCount } = config;
+  const { id, serialNumber } = config;
 
-  useEffect(() => {
-    if (readyState === ReadyState.OPEN) {
-      logMsg("info", "WebSocket is connected");
-    }
-  }, [readyState]);
+  const [shouldSendBootNotification, setShouldSendBootNotification] =
+    useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const prevReadyState = useRef<ReadyState | null>(null);
 
-  const handleConnect = () => {
-    connect();
-    handleBootNotification();
-  };
-
-  const handleBootNotification = () => {
+  const handleBootNotification = useCallback(() => {
     const message = JSON.stringify([
       OcppMessageType.Call,
       id,
@@ -49,6 +47,53 @@ export function useControlPanel() {
 
     sendMessage(message);
     logMsg("outgoing", `Boot notification: ${message}`);
+  }, [id, sendMessage, logMsg]);
+
+  useEffect(() => {
+    if (
+      readyState === ReadyState.OPEN &&
+      prevReadyState.current !== ReadyState.OPEN
+    ) {
+      if (isReconnecting) {
+        logMsg("info", "Reconnected successfully");
+        setIsReconnecting(false);
+      } else {
+        logMsg("info", "WebSocket is connected");
+      }
+      if (shouldSendBootNotification) {
+        handleBootNotification();
+        setShouldSendBootNotification(false);
+      }
+    } else if (
+      readyState === ReadyState.CLOSED &&
+      prevReadyState.current !== ReadyState.CLOSED
+    ) {
+      logMsg("info", "WebSocket connection closed");
+    }
+    prevReadyState.current = readyState;
+  }, [
+    readyState,
+    shouldSendBootNotification,
+    logMsg,
+    isReconnecting,
+    handleBootNotification,
+  ]);
+
+  const handleConnect = () => {
+    clearLogs();
+    setShouldSendBootNotification(true);
+    connect();
+  };
+
+  const handleReconnect = () => {
+    clearLogs();
+    setIsReconnecting(true);
+    logMsg("info", "Reconnecting...");
+    handleConnect();
+  };
+
+  const handleClose = () => {
+    closeWebSocket();
   };
 
   const handleAuthorize = () => {
@@ -60,28 +105,6 @@ export function useControlPanel() {
     ]);
     sendMessage(message);
     logMsg("outgoing", `Authorize sent: ${message}`);
-  };
-
-  const handleStartTransaction = () => {
-    const message = JSON.stringify([
-      OcppMessageType.Call,
-      id,
-      OcppRequestType.StartTransaction,
-      {
-        connectorId: 1,
-        idTag: serialNumber,
-        timestamp: new Date().toISOString(),
-        meterStart: 0,
-        reservationId: 0,
-      },
-    ]);
-
-    sendMessage(message);
-    logMsg("outgoing", `Start Transaction sent: ${message}`);
-    setActions({
-      ...actions,
-      lastAction: OcppRequestType.StartTransaction,
-    });
   };
 
   const handleStopTransaction = (transactionId = "") => {
@@ -127,58 +150,10 @@ export function useControlPanel() {
     });
   };
 
-  const sendMeterValuesInterval = () => {
-    const requestType = OcppRequestType.MeterValues;
-
-    const ssid = actions.transactionId;
-
-    let chargeAmount = meterValue;
-    if (meterCount < 100) {
-      setConfig({ ...config, meterCount: meterCount + 1 });
-    }
-
-    const chargeEffect =
-      800 + (Math.floor(Math.random() * 100 + 1) + meterCount) * 100;
-
-    let soc = 50 + meterCount + 2;
-    if (soc > 100) {
-      soc = 100;
-    } else {
-      chargeAmount += Math.floor(Math.random() * 10);
-      setMeterValue(chargeAmount);
-    }
-    const message = JSON.stringify([
-      OcppMessageType.Call,
-      id,
-      OcppRequestType.MeterValues,
-      {
-        connectorId: 1,
-        transactionId: ssid,
-        meterValue: [
-          {
-            timestamp: new Date().toISOString(),
-            sampledValue: [
-              {
-                value: chargeAmount,
-                measurand: "Energy.Active.Import.Register",
-              },
-              { value: chargeEffect, measurand: "Power.Active.Import" },
-              { value: soc, measurand: "SoC" },
-            ],
-          },
-        ],
-      },
-    ]);
-
-    sendMessage(message);
-    logMsg("outgoing", `Meter Values sent: ${message}`);
-    setActions({ ...actions, lastAction: requestType });
-  };
-
   const handleSendMeter = () => {
     logMsg("info", "Setting meter value interval to 1 minutes");
     setInterval(() => {
-      sendMeterValuesInterval();
+      sendMeterValues();
     }, 60000);
   };
   const handleStatus = () => {
@@ -205,6 +180,8 @@ export function useControlPanel() {
 
   return {
     handleConnect,
+    handleReconnect,
+    handleClose,
     handleAuthorize,
     handleStartTransaction,
     handleStopTransaction,
@@ -213,7 +190,5 @@ export function useControlPanel() {
     handleStatus,
     status,
     setStatus,
-    meterValue,
-    setMeterValue,
   };
 }
