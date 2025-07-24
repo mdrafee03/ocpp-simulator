@@ -20,10 +20,9 @@ export function useControlPanel() {
   const { addPendingMessage } = useMessageTrackingStore();
   const { handleStartTransaction } = useStartTransaction();
   const [status, setStatus] = useState("Available");
-  const { startMeterInterval, stopMeterInterval, isMeterIntervalActive } =
-    useMeterValue();
+  const { startMeterInterval, stopMeterInterval } = useMeterValue();
 
-  const { id, serialNumber } = config;
+  const { id, serialNumber, isMeterActive } = config;
 
   const [shouldSendBootNotification, setShouldSendBootNotification] =
     useState(false);
@@ -146,10 +145,16 @@ export function useControlPanel() {
   };
 
   const handleSendMeter = () => {
-    if (isMeterIntervalActive()) {
+    if (isMeterActive) {
       stopMeterInterval();
     } else {
-      startMeterInterval(60000); // 1 minute interval
+      const started = startMeterInterval(60000); // 1 minute interval
+      if (!started) {
+        logMsg(
+          "error",
+          "Failed to start meter values - check transaction status"
+        );
+      }
     }
   };
   const handleStatus = () => {

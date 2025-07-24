@@ -2,21 +2,40 @@ import { useState } from "react";
 import { useWebSocketHook } from "../../store/WebSocketContext";
 import { useConfigStore } from "../../store/useConfigStore";
 import { useControlPanel } from "./useControlPanel";
-import { useMeterValue } from "../../hooks/useMeterValue";
+
+import { useActionStore } from "../../store/useActionsStore";
 import { EditIcon } from "../../Icons/EditIcon";
 
 export const MeterControls = () => {
   const { readyState } = useWebSocketHook();
   const { config, setConfig } = useConfigStore();
   const { handleSendMeter } = useControlPanel();
-  const { isMeterIntervalActive } = useMeterValue();
+  const { actions } = useActionStore();
   const [showConfig, setShowConfig] = useState(false);
 
-  const { meterValue, meterCount } = config;
+  const { meterValue, meterCount, isMeterActive } = config;
+  const { transactionId } = actions;
   const isConnected = readyState === 1;
+  const hasActiveTransaction = !!transactionId;
 
   const setStartingValue = (value: number) =>
     setConfig({ ...config, meterValue: value });
+
+
+
+  const getMeterButtonText = () => {
+    if (!hasActiveTransaction) {
+      return "No Active Transaction";
+    }
+    return isMeterActive ? "Stop Meter Values" : "Start Meter Values";
+  };
+
+  const getMeterButtonClass = () => {
+    if (!hasActiveTransaction) {
+      return "btn-disabled";
+    }
+    return isMeterActive ? "btn-error" : "btn-success";
+  };
 
   return (
     <div className="space-y-2">
@@ -61,6 +80,13 @@ export const MeterControls = () => {
           />
         </div>
 
+        {/* Progress Bar Labels */}
+        <div className="flex justify-between text-xs text-base-content/50 mb-1">
+          <span>0 kWh</span>
+          <span>100 kWh</span>
+        </div>
+
+        {/* Meter Info Display */}
         <div className="flex justify-between text-xs text-base-content/50">
           <span className="flex items-center gap-1">
             <svg
@@ -76,10 +102,24 @@ export const MeterControls = () => {
                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            Interval: {meterCount}
+            Interval: 60s
           </span>
-          <span>0 kWh</span>
-          <span>100 kWh</span>
+          <span className="flex items-center gap-1">
+            <svg
+              className="w-3 h-3"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
+            </svg>
+            Count: {meterCount}
+          </span>
         </div>
       </div>
 
@@ -128,15 +168,13 @@ export const MeterControls = () => {
 
       {/* Control Button */}
       <button
-        className={`btn h-10 text-sm w-full group relative overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-lg disabled:hover:scale-100 disabled:shadow-none ${
-          isMeterIntervalActive() ? "btn-error" : "btn-success"
-        }`}
+        className={`btn h-10 text-sm w-full group relative overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-lg disabled:hover:scale-100 disabled:shadow-none ${getMeterButtonClass()}`}
         onClick={handleSendMeter}
-        disabled={!isConnected}
+        disabled={!isConnected || !hasActiveTransaction}
       >
         <div
           className={`absolute inset-0 bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
-            isMeterIntervalActive()
+            isMeterActive
               ? "from-error/20 to-transparent"
               : "from-success/20 to-transparent"
           }`}
@@ -148,7 +186,7 @@ export const MeterControls = () => {
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            {isMeterIntervalActive() ? (
+            {isMeterActive ? (
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -164,7 +202,7 @@ export const MeterControls = () => {
               />
             )}
           </svg>
-          <span>{isMeterIntervalActive() ? "Stop Meter" : "Start Meter"}</span>
+          <span>{getMeterButtonText()}</span>
         </div>
       </button>
     </div>
