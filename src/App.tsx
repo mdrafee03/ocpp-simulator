@@ -10,7 +10,7 @@ function App() {
   return (
     <ThemeProvider>
       <div className="h-screen bg-base-200 text-base-content flex flex-col relative overflow-hidden">
-        <div className="flex-1 p-6 flex flex-col">
+        <div className="flex-1 p-6 flex flex-col min-h-0 overflow-hidden">
           <div className="flex justify-between items-center mb-6 flex-shrink-0">
             <h1 className="text-3xl font-bold">OCPP 1.6 Charger Simulator</h1>
             <div className="flex items-center gap-4">
@@ -18,7 +18,7 @@ function App() {
               <SettingsButton />
             </div>
           </div>
-          <div className="flex-1 flex items-center justify-center overflow-hidden">
+          <div className="flex-1 overflow-hidden min-h-0">
             <WebSocketProvider>
               <Simulator />
             </WebSocketProvider>
