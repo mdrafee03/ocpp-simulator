@@ -11,12 +11,14 @@ type Configuration = {
   meterValue: number;
   transactionId?: number;
   status: OcppStatusType;
+  isMeterActive: boolean; // Add meter interval state
 };
 
 type ConfigState = {
   config: Configuration;
   setConfig: (config: Configuration) => void;
   clearConfig: () => void;
+  setMeterActive: (active: boolean) => void; // Add setter for meter state
 };
 
 const defaultConfig: Configuration = {
@@ -26,6 +28,7 @@ const defaultConfig: Configuration = {
   meterCount: 1,
   meterValue: 10,
   status: "Available",
+  isMeterActive: false, // Initialize as false
 };
 
 export const useConfigStore = create<ConfigState>()(
@@ -34,6 +37,10 @@ export const useConfigStore = create<ConfigState>()(
       config: defaultConfig,
       setConfig: (config) => set({ config }),
       clearConfig: () => set({ config: defaultConfig }),
+      setMeterActive: (active) =>
+        set((state) => ({
+          config: { ...state.config, isMeterActive: active },
+        })),
     }),
     {
       name: "config-storage",

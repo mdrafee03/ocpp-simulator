@@ -7,13 +7,34 @@ import { useWebSocketHook } from "../store/WebSocketContext";
 import { useActionStore } from "../store/useActionsStore";
 import { useMessageTrackingStore } from "../store/useMessageTrackingStore";
 
+// Constants
+const WEBSOCKET_OPEN_STATE = 1;
+const METER_INTERVAL_MS = 60000; // 60 seconds
+const METER_COUNT_MAX = 100;
+const BASE_CHARGE_EFFECT = 800;
+const CHARGE_EFFECT_MULTIPLIER = 100;
+const BASE_SOC = 50;
+const SOC_INCREMENT = 2;
+const SOC_MAX = 100;
+const ENERGY_VARIATION = 0.2; // ±10%
+const MIN_ENERGY_INCREMENT = 0.01;
+const TIME_INTERVAL_HOURS = 60 / 3600; // 60 seconds in hours
+
+// Types
+interface MeterCalculations {
+  chargeEffect: number;
+  soc: number;
+  energyIncrement: number;
+  newChargeAmount: number;
+}
+
 export const useMeterValue = () => {
   const { sendMessage, readyState } = useWebSocketHook();
   const { logMsg } = useLoggerStore();
-  const { config, setConfig } = useConfigStore();
+  const { config, setConfig, setMeterActive } = useConfigStore();
   const { actions } = useActionStore();
   const { addPendingMessage } = useMessageTrackingStore();
-  const { meterCount, meterValue } = config;
+  const { meterCount, meterValue, isMeterActive } = config;
   const { transactionId } = actions;
 
   // Store interval reference to prevent memory leaks
@@ -26,108 +47,169 @@ export const useMeterValue = () => {
     currentMeterValueRef.current = meterValue;
   }, [meterValue]);
 
-  const sendMeterValues = useCallback(() => {
-    // Only send meter values if we have an active transaction
+  // Helper function to stop meter interval
+  const stopMeterIntervalInternal = useCallback(
+    (reason: string) => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+        setMeterActive(false);
+        logMsg("info", `Meter interval stopped - ${reason}`);
+      } else {
+        // Even if no interval is running, ensure meter is marked as inactive
+        setMeterActive(false);
+        logMsg("info", `Meter marked as inactive - ${reason}`);
+      }
+    },
+    [setMeterActive, logMsg]
+  );
+
+  // Helper function to check if meter values can be sent
+  const canSendMeterValues = useCallback(() => {
     if (!transactionId) {
       logMsg("error", "Cannot send meter values: No active transaction");
-      return;
+      stopMeterIntervalInternal("no active transaction");
+      return false;
     }
 
-    // Only send if WebSocket is connected
-    if (readyState !== 1) {
-      // 1 = OPEN
-      logMsg("error", "Cannot send meter values: WebSocket not connected");
+    if (readyState !== WEBSOCKET_OPEN_STATE) {
+      logMsg(
+        "error",
+        `Cannot send meter values: WebSocket not connected (state: ${readyState})`
+      );
+      stopMeterIntervalInternal("WebSocket disconnected");
+      return false;
+    }
+
+    return true;
+  }, [transactionId, readyState, logMsg, stopMeterIntervalInternal]);
+
+  // Helper function to calculate meter values
+  const calculateMeterValues = useCallback(
+    (newMeterCount: number): MeterCalculations => {
+      // Calculate realistic charging values
+      const chargeEffect =
+        BASE_CHARGE_EFFECT +
+        (Math.floor(Math.random() * 100 + 1) + newMeterCount) *
+          CHARGE_EFFECT_MULTIPLIER;
+
+      let soc = BASE_SOC + newMeterCount + SOC_INCREMENT;
+      if (soc > SOC_MAX) {
+        soc = SOC_MAX;
+      }
+
+      // Calculate energy increment based on power and time
+      const powerInKw = chargeEffect / 1000; // Convert W to kW
+      const energyIncrement = powerInKw * TIME_INTERVAL_HOURS;
+
+      // Add some small variation (±10%) to make it realistic
+      const variation = 1 + (Math.random() - 0.5) * ENERGY_VARIATION;
+      const adjustedIncrement = energyIncrement * variation;
+
+      // Always increment the charge amount (never decrease)
+      const currentValue = currentMeterValueRef.current;
+      const newChargeAmount =
+        currentValue + Math.max(MIN_ENERGY_INCREMENT, adjustedIncrement);
+
+      return {
+        chargeEffect,
+        soc,
+        energyIncrement: adjustedIncrement,
+        newChargeAmount,
+      };
+    },
+    []
+  );
+
+  // Helper function to create meter value message
+  const createMeterValueMessage = useCallback(
+    (id: string, calculations: MeterCalculations) => {
+      return JSON.stringify([
+        OcppMessageType.Call,
+        id,
+        OcppRequestType.MeterValues,
+        {
+          connectorId: 1,
+          transactionId: transactionId,
+          meterValue: [
+            {
+              timestamp: new Date().toISOString(),
+              sampledValue: [
+                {
+                  value: calculations.newChargeAmount.toString(),
+                  measurand: "Energy.Active.Import.Register",
+                  unit: "kWh",
+                },
+                {
+                  value: calculations.chargeEffect.toString(),
+                  measurand: "Power.Active.Import",
+                  unit: "W",
+                },
+                {
+                  value: calculations.soc.toString(),
+                  measurand: "SoC",
+                  unit: "Percent",
+                },
+              ],
+            },
+          ],
+        },
+      ]);
+    },
+    [transactionId]
+  );
+
+  const sendMeterValues = useCallback(() => {
+    if (!canSendMeterValues()) {
       return;
     }
 
     const id = getRandomId();
 
     // Update meter count first
-    const newMeterCount = meterCount < 100 ? meterCount + 1 : meterCount;
-    if (meterCount < 100) {
+    const newMeterCount =
+      meterCount < METER_COUNT_MAX ? meterCount + 1 : meterCount;
+    if (meterCount < METER_COUNT_MAX) {
       setConfig({ ...config, meterCount: newMeterCount });
     }
 
-    // Calculate realistic charging values
-    const chargeEffect =
-      800 + (Math.floor(Math.random() * 100 + 1) + newMeterCount) * 100;
-
-    let soc = 50 + newMeterCount + 2;
-    if (soc > 100) {
-      soc = 100;
-    }
-
-    // Calculate energy increment based on power and time
-    // Assuming 60-second intervals, convert power (W) to energy (kWh)
-    const powerInKw = chargeEffect / 1000; // Convert W to kW
-    const timeInHours = 60 / 3600; // 60 seconds in hours
-    const energyIncrement = powerInKw * timeInHours;
-
-    // Add some small variation (±10%) to make it realistic
-    const variation = 1 + (Math.random() - 0.5) * 0.2; // ±10%
-    const adjustedIncrement = energyIncrement * variation;
-
-    // Always increment the charge amount (never decrease)
-    const currentValue = currentMeterValueRef.current;
-    const newChargeAmount = currentValue + Math.max(0.01, adjustedIncrement); // Minimum 0.01 kWh increment
+    // Calculate meter values
+    const calculations = calculateMeterValues(newMeterCount);
 
     // Update the ref immediately
-    currentMeterValueRef.current = newChargeAmount;
+    currentMeterValueRef.current = calculations.newChargeAmount;
+    setConfig({ ...config, meterValue: calculations.newChargeAmount });
 
-    setConfig({ ...config, meterValue: newChargeAmount });
+    // Create and send message
+    const message = createMeterValueMessage(id, calculations);
 
-    const message = JSON.stringify([
-      OcppMessageType.Call,
-      id,
-      OcppRequestType.MeterValues,
-      {
-        connectorId: 1,
-        transactionId: transactionId,
-        meterValue: [
-          {
-            timestamp: new Date().toISOString(),
-            sampledValue: [
-              {
-                value: newChargeAmount.toString(),
-                measurand: "Energy.Active.Import.Register",
-                unit: "kWh",
-              },
-              {
-                value: chargeEffect.toString(),
-                measurand: "Power.Active.Import",
-                unit: "W",
-              },
-              {
-                value: soc.toString(),
-                measurand: "SoC",
-                unit: "Percent",
-              },
-            ],
-          },
-        ],
-      },
-    ]);
+    // Double-check WebSocket is still connected before sending
+    if (readyState !== WEBSOCKET_OPEN_STATE) {
+      logMsg("error", "WebSocket disconnected before sending meter values");
+      return;
+    }
 
     sendMessage(message);
     addPendingMessage(id, OcppRequestType.MeterValues);
     logMsg(
       "outgoing",
-      `Meter Values sent: ${newChargeAmount} kWh, ${chargeEffect} W, ${soc}% SoC`
+      `Meter Values sent: ${calculations.newChargeAmount} kWh, ${calculations.chargeEffect} W, ${calculations.soc}% SoC`
     );
   }, [
-    transactionId,
-    meterValue,
+    canSendMeterValues,
     meterCount,
     config,
     setConfig,
+    calculateMeterValues,
+    createMeterValueMessage,
     readyState,
     sendMessage,
+    addPendingMessage,
     logMsg,
-    actions,
   ]);
 
   const startMeterInterval = useCallback(
-    (intervalMs: number = 60000) => {
+    (intervalMs: number = METER_INTERVAL_MS) => {
       // Clear any existing interval first
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -138,7 +220,7 @@ export const useMeterValue = () => {
         return false;
       }
 
-      if (readyState !== 1) {
+      if (readyState !== WEBSOCKET_OPEN_STATE) {
         logMsg("error", "Cannot start meter interval: WebSocket not connected");
         return false;
       }
@@ -148,31 +230,43 @@ export const useMeterValue = () => {
 
       // Set up interval
       intervalRef.current = setInterval(sendMeterValues, intervalMs);
+      setMeterActive(true);
       logMsg(
         "info",
-        `Meter value interval started: ${intervalMs / 1000} seconds`
+        `Meter value interval started by user: ${intervalMs / 1000} seconds`
       );
       return true;
     },
-    [transactionId, readyState, sendMeterValues, logMsg, actions]
+    [transactionId, readyState, sendMeterValues, logMsg, setMeterActive]
   );
 
   const stopMeterInterval = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-      logMsg("info", "Meter value interval stopped");
-    }
-  }, [logMsg]);
+    stopMeterIntervalInternal("user stopped");
+  }, [stopMeterIntervalInternal]);
 
   const isMeterIntervalActive = useCallback(() => {
-    return intervalRef.current !== null;
-  }, []);
+    return isMeterActive;
+  }, [isMeterActive]);
+
+  // Effect to automatically stop meter interval when transaction is cleared
+  useEffect(() => {
+    if (!transactionId && intervalRef.current) {
+      stopMeterIntervalInternal("transaction ended");
+    }
+  }, [transactionId, stopMeterIntervalInternal]);
+
+  // Effect to monitor WebSocket connection and stop meter interval when disconnected
+  useEffect(() => {
+    if (readyState !== WEBSOCKET_OPEN_STATE && intervalRef.current) {
+      stopMeterIntervalInternal("WebSocket connection lost");
+    }
+  }, [readyState, stopMeterIntervalInternal]);
 
   return {
     sendMeterValues,
     startMeterInterval,
     stopMeterInterval,
     isMeterIntervalActive,
+    isMeterActive,
   };
 };
