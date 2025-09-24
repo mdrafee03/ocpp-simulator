@@ -17,6 +17,16 @@ export const useGetConfigurationHandler = () => {
           readonly: false,
           value: "300",
         },
+        {
+          key: "chargingscheduleallowedchargingrateunit",
+          readonly: false,
+          value: "a",
+        },
+        {
+          key: "OperatorMaxCurrent",
+          readonly: false,
+          value: "32.0",
+        },
       ],
       unknownKey: [],
     };
