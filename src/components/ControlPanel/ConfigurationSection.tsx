@@ -1,31 +1,30 @@
-import { Environments } from "../../constants/constants";
 import { useConfigStore } from "../../store/useConfigStore";
 import { useChargersStore } from "../../store/useChargersStore";
+import { useServerStore } from "../../store/useServerStore";
 
 export const ConfigurationSection = () => {
   const { config, setConfig } = useConfigStore();
   const { chargers } = useChargersStore();
+  const { servers } = useServerStore();
 
   return (
     <div className="grid grid-cols-2 gap-2">
       <div className="form-control">
-        <label className="label block">Environment</label>
+        <label className="label block">Server</label>
         <select
           className="select select-bordered h-12 text-base w-full"
-          value={config.env}
-          onChange={(e) =>
-            setConfig({ ...config, env: e.target.value as Environments })
-          }
+          value={config.serverName}
+          onChange={(e) => setConfig({ ...config, serverName: e.target.value })}
         >
-          {Object.keys(Environments).map((env) => (
-            <option key={env} value={env}>
-              {env}
+          {servers.map((server) => (
+            <option key={server.id} value={server.name}>
+              {server.name}
             </option>
           ))}
         </select>
       </div>
       <div className="form-control">
-        <label className="label block">Charger Serial</label>
+        <label className="label block">Charger Serial Number</label>
         <select
           className="select select-bordered h-12 text-base w-full"
           value={config.serialNumber}

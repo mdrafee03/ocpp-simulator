@@ -18,9 +18,9 @@ export const useGetConfigurationHandler = () => {
           value: "300",
         },
         {
-          key: "chargingscheduleallowedchargingrateunit",
+          key: "ChargingScheduleAllowedChargingRateUnit",
           readonly: false,
-          value: "a",
+          value: "Current",
         },
         {
           key: "OperatorMaxCurrent",

@@ -2,15 +2,17 @@ import {
   createContext,
   useContext,
   useMemo,
+  useCallback,
   useState,
   useEffect,
   useRef,
   type PropsWithChildren,
 } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
-import { Environments, OCPP_VERSIONS } from "../constants/constants";
+import { OCPP_VERSIONS } from "../constants/constants";
 import { useConfigStore } from "./useConfigStore";
 import { useLoggerStore } from "./useLoggerStore";
+import { useServerStore } from "./useServerStore";
 
 interface WebSocketContextType {
   sendMessage: (msg: string) => void;
@@ -28,6 +30,7 @@ export const WebSocketProvider = ({ children }: PropsWithChildren) => {
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const config = useConfigStore((state) => state.config);
   const logMsg = useLoggerStore((state) => state.logMsg);
+  const getServerUrl = useServerStore((state) => state.getServerUrl);
   const prevReadyState = useRef<ReadyState | null>(null);
 
   const { sendMessage, lastMessage, readyState, getWebSocket } = useWebSocket(
@@ -54,24 +57,27 @@ export const WebSocketProvider = ({ children }: PropsWithChildren) => {
     prevReadyState.current = readyState;
   }, [readyState, logMsg]);
 
-  const connect = () => {
+  const connect = useCallback(() => {
     // Force reconnection by first closing any existing connection
     getWebSocket()?.close();
     setWsUrl(null);
     // Set the URL after a brief delay to ensure the previous connection is closed
     setTimeout(() => {
-      setWsUrl(Environments[config.env] + config.serialNumber);
+      const serverUrl = getServerUrl(config.serverName);
+      if (serverUrl) {
+        setWsUrl(serverUrl + config.serialNumber);
+      }
     }, 100);
-  };
+  }, [getWebSocket, getServerUrl, config.serverName, config.serialNumber]);
 
-  const closeWebSocket = () => {
+  const closeWebSocket = useCallback(() => {
     getWebSocket()?.close();
     setWsUrl(null);
-  };
+  }, [getWebSocket]);
 
   const value = useMemo(
     () => ({ sendMessage, lastMessage, readyState, connect, closeWebSocket }),
-    [sendMessage, lastMessage, readyState, config, getWebSocket]
+    [sendMessage, lastMessage, readyState, connect, closeWebSocket]
   );
 
   return (

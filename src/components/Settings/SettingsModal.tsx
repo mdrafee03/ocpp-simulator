@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ModalHeader } from "./ModalHeader";
 import { TabNavigation } from "./TabNavigation";
-import { EnvironmentTab } from "./EnvironmentTab";
+import { ServersTab } from "./ServersTab";
 import { ChargersTab } from "./ChargersTab";
 
 interface SettingsModalProps {
@@ -10,9 +10,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
-  const [activeTab, setActiveTab] = useState<"environments" | "chargers">(
-    "environments"
-  );
+  const [activeTab, setActiveTab] = useState<"servers" | "chargers">("servers");
 
   if (!isOpen) return null;
 
@@ -22,7 +20,7 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
         <ModalHeader onClose={onClose} />
         <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
-        {activeTab === "environments" && <EnvironmentTab />}
+        {activeTab === "servers" && <ServersTab />}
         {activeTab === "chargers" && <ChargersTab />}
       </div>
     </div>

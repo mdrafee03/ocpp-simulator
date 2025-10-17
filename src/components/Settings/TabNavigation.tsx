@@ -1,6 +1,6 @@
 interface TabNavigationProps {
-  activeTab: "environments" | "chargers";
-  onTabChange: (tab: "environments" | "chargers") => void;
+  activeTab: "servers" | "chargers";
+  onTabChange: (tab: "servers" | "chargers") => void;
 }
 
 export const TabNavigation = ({
@@ -10,10 +10,10 @@ export const TabNavigation = ({
   return (
     <div className="tabs tabs-boxed mb-4">
       <button
-        className={`tab ${activeTab === "environments" ? "tab-active" : ""}`}
-        onClick={() => onTabChange("environments")}
+        className={`tab ${activeTab === "servers" ? "tab-active" : ""}`}
+        onClick={() => onTabChange("servers")}
       >
-        Environment URLs
+        Servers
       </button>
       <button
         className={`tab ${activeTab === "chargers" ? "tab-active" : ""}`}

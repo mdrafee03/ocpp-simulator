@@ -20,11 +20,7 @@ export const useServerStore = create<ServerState>()(
     (set, get) => ({
       servers: [
         { id: "1", name: "Local", url: "ws://localhost:5001/ocpp/" },
-        {
-          id: "2",
-          name: "Dev",
-          url: "wss://watt-appengine-ocpp-api-dev-dot-watt-dev-307411.ey.r.appspot.com/ocpp/",
-        },
+        { id: "2", name: "Dev", url: "wss://watt-appengine-ocpp-api-dev-dot-watt-dev-307411.ey.r.appspot.com/ocpp/" },
       ],
       addServer: (server: Server) => {
         set((state) => ({

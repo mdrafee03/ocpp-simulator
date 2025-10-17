@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useServerStore, Server } from "../../store/useServerStore";
+import { useServerStore, type Server } from "../../store/useServerStore";
 
 export const ServersTab = () => {
   const { servers, addServer, updateServer, deleteServer } = useServerStore();

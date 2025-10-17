@@ -4,7 +4,7 @@ import { getRandomId } from "../helpers/helpers";
 import type { OcppStatusType } from "../constants/enums";
 
 type Configuration = {
-  env: "Local" | "Dev";
+  serverName: string;
   serialNumber: string;
   id: string;
   meterCount: number;
@@ -22,7 +22,7 @@ type ConfigState = {
 };
 
 const defaultConfig: Configuration = {
-  env: "Dev",
+  serverName: "Dev",
   serialNumber: "WI2695_8",
   id: getRandomId(),
   meterCount: 1,
