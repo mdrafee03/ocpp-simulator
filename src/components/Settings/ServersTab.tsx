@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useServerStore, type Server } from "../../store/useServerStore";
+import { useToastStore } from "../../store/useToastStore";
 
 export const ServersTab = () => {
   const { servers, addServer, updateServer, deleteServer } = useServerStore();
+  const { showToast } = useToastStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editUrl, setEditUrl] = useState("");
@@ -20,6 +22,7 @@ export const ServersTab = () => {
     if (editName.trim() && editUrl.trim()) {
       updateServer(id, editName, editUrl);
       setEditingId(null);
+      showToast("Server updated successfully", "success");
     }
   };
 
@@ -32,8 +35,9 @@ export const ServersTab = () => {
   const handleDelete = (id: string) => {
     if (servers.length > 1) {
       deleteServer(id);
+      showToast("Server deleted successfully", "success");
     } else {
-      alert("You must have at least one server configured.");
+      showToast("You must have at least one server configured", "warning");
     }
   };
 
@@ -48,6 +52,7 @@ export const ServersTab = () => {
       setNewName("");
       setNewUrl("");
       setIsAdding(false);
+      showToast("Server added successfully", "success");
     }
   };
 

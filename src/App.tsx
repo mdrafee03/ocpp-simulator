@@ -5,6 +5,7 @@ import { SettingsButton } from "./components/Settings/SettingsButton";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { Footer } from "./components/Footer";
+import { Toast } from "./components/Toast/Toast";
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           </div>
         </div>
         <Footer />
+        <Toast />
       </div>
     </ThemeProvider>
   );

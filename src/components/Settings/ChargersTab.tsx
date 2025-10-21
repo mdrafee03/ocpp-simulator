@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useChargersStore, type Charger } from "../../store/useChargersStore";
+import { useToastStore } from "../../store/useToastStore";
 
 export const ChargersTab = () => {
   const { chargers, addCharger, updateCharger, deleteCharger } =
     useChargersStore();
+  const { showToast } = useToastStore();
   const [newChargerSerial, setNewChargerSerial] = useState("");
   const [editingCharger, setEditingCharger] = useState<Charger | null>(null);
   const [editSerial, setEditSerial] = useState("");
@@ -12,6 +14,7 @@ export const ChargersTab = () => {
     if (newChargerSerial.trim()) {
       addCharger(newChargerSerial.trim());
       setNewChargerSerial("");
+      showToast("Charger added successfully", "success");
     }
   };
 
@@ -25,6 +28,7 @@ export const ChargersTab = () => {
       updateCharger(editingCharger.id, editSerial.trim());
       setEditingCharger(null);
       setEditSerial("");
+      showToast("Charger updated successfully", "success");
     }
   };
 
@@ -35,6 +39,7 @@ export const ChargersTab = () => {
 
   const handleDeleteCharger = (id: string) => {
     deleteCharger(id);
+    showToast("Charger deleted successfully", "success");
   };
 
   return (
