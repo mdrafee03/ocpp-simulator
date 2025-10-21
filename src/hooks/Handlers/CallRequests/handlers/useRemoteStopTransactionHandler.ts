@@ -4,6 +4,7 @@ import { useLoggerStore } from "../../../../store/useLoggerStore";
 import { useWebSocketHook } from "../../../../store/WebSocketContext";
 import { useMessageTrackingStore } from "../../../../store/useMessageTrackingStore";
 import { useActionStore } from "../../../../store/useActionsStore";
+import { useConfigStore } from "../../../../store/useConfigStore";
 import { getRandomId } from "../../../../helpers/helpers";
 import { useResponseUtils } from "../utils/responseUtils";
 
@@ -17,6 +18,7 @@ export const useRemoteStopTransactionHandler = () => {
   const { logMsg } = useLoggerStore();
   const { addPendingMessage } = useMessageTrackingStore();
   const { actions, setActions } = useActionStore();
+  const { config } = useConfigStore();
   const { sendResponse } = useResponseUtils();
 
   const handleRemoteStopTransaction = (callRequest: CallRequest) => {
@@ -54,7 +56,7 @@ export const useRemoteStopTransactionHandler = () => {
       transactionId: transactionId,
       idTag: "remote_stop",
       timestamp: new Date().toISOString(),
-      meterStop: 20,
+      meterStop: Math.round(config.meterValue * 1000), // Convert kWh to Wh as per OCPP spec
     };
 
     const stopTransactionMessage = [

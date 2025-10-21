@@ -9,7 +9,7 @@ import { useActionStore } from "../store/useActionsStore";
 export const useStartTransaction = () => {
   const logMsg = useLoggerStore((state) => state.logMsg);
   const { sendMessage } = useWebSocketHook();
-  const { config } = useConfigStore();
+  const { config, setConfig } = useConfigStore();
   const { addPendingMessage } = useMessageTrackingStore();
   const { actions } = useActionStore();
 
@@ -26,6 +26,9 @@ export const useStartTransaction = () => {
       );
       return;
     }
+
+    // Reset meter value to 0 when starting a new transaction
+    setConfig({ ...config, meterValue: 0, meterCount: 1 });
 
     const message = JSON.stringify([
       OcppMessageType.Call,

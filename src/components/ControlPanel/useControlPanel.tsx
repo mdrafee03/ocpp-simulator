@@ -22,7 +22,7 @@ export function useControlPanel() {
   const [status, setStatus] = useState("Available");
   const { startMeterInterval, stopMeterInterval } = useMeterValue();
 
-  const { id, serialNumber, isMeterActive } = config;
+  const { id, serialNumber, isMeterActive, meterValue } = config;
 
   const [shouldSendBootNotification, setShouldSendBootNotification] =
     useState(false);
@@ -126,7 +126,7 @@ export function useControlPanel() {
         transactionId: ssid,
         idTag: serialNumber,
         timestamp: new Date().toISOString(),
-        meterStop: 20,
+        meterStop: Math.round(meterValue * 1000), // Convert kWh to Wh as per OCPP spec
       },
     ]);
 

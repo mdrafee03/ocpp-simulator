@@ -21,8 +21,6 @@ export const MeterControls = () => {
   const setStartingValue = (value: number) =>
     setConfig({ ...config, meterValue: value });
 
-
-
   const getMeterButtonText = () => {
     if (!hasActiveTransaction) {
       return "No Active Transaction";
@@ -60,7 +58,10 @@ export const MeterControls = () => {
               Current Energy
             </div>
             <div className="text-2xl font-mono text-primary font-bold">
-              {meterValue.toFixed(1)} kWh
+              {isConnected && hasActiveTransaction
+                ? meterValue.toFixed(1)
+                : "0.0"}{" "}
+              kWh
             </div>
           </div>
           <button
@@ -76,7 +77,13 @@ export const MeterControls = () => {
         <div className="w-full bg-base-300 rounded-full h-2 mb-2 overflow-hidden">
           <div
             className="bg-gradient-to-r from-primary to-primary/80 h-2 rounded-full transition-all duration-500 ease-out shadow-sm"
-            style={{ width: `${Math.min((meterValue / 100) * 100, 100)}%` }}
+            style={{
+              width: `${
+                isConnected && hasActiveTransaction
+                  ? Math.min((meterValue / 100) * 100, 100)
+                  : 0
+              }%`,
+            }}
           />
         </div>
 
